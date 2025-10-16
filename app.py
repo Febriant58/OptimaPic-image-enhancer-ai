@@ -9,6 +9,9 @@ import os, time, mimetypes, glob
 # =========================================================
 app = Flask(__name__)
 
+# TENTUKAN ROOT PATH DENGAN PASTI
+BASE_DIR = os.path.dirname(os.path.abspath(__file__)) 
+
 # Folder upload & hasil
 UPLOAD_FOLDER = os.path.join('static', 'uploads')
 RESULTS_FOLDER = os.path.join('static', 'results')
@@ -29,22 +32,27 @@ ONNX_LOADED = False
 session_pre = None
 session_end = None
 
-try:
-    if not os.path.exists("esrgan-small-pre.onnx") or not os.path.exists("esrgan-small-end.onnx"):
-        raise FileNotFoundError("Model ONNX tidak ditemukan di direktori utama.")
+# --- PERBAIKAN: GUNAKAN PATH ABSOLUT UNTUK MODEL ---
+MODEL_PRE_PATH = os.path.join(BASE_DIR, "esrgan-small-pre.onnx")
+MODEL_END_PATH = os.path.join(BASE_DIR, "esrgan-small-end.onnx")
 
-    session_pre = rt.InferenceSession("esrgan-small-pre.onnx")
-    session_end = rt.InferenceSession("esrgan-small-end.onnx")
+try:
+    if not os.path.exists(MODEL_PRE_PATH) or not os.path.exists(MODEL_END_PATH):
+        # Ini akan tampil di log Vercel jika gagal
+        raise FileNotFoundError(f"Model ONNX tidak ditemukan di path: {MODEL_PRE_PATH}")
+
+    session_pre = rt.InferenceSession(MODEL_PRE_PATH) # Gunakan path absolut
+    session_end = rt.InferenceSession(MODEL_END_PATH) # Gunakan path absolut
     print("✅ Model ONNX berhasil dimuat.")
     ONNX_LOADED = True
 
 except Exception as e:
-    print(f"⚠️ Gagal memuat model ONNX: {e}")
-    print("Pastikan file 'esrgan-small-pre.onnx' dan 'esrgan-small-end.onnx' ada di direktori ini.")
-
-
+    print(f"⚠️ Gagal memuat model ONNX. ERROR: {e}")
+    # Jika ini gagal, 500 Internal Server Error akan muncul
+    # Cek Log Vercel untuk melihat pesan error ini
 # =========================================================
 # Fungsi Peningkatan Citra dengan ONNX
+# ... (sisanya sama)
 # =========================================================
 def enhance_image_onnx(img):
     if not ONNX_LOADED:
@@ -156,6 +164,7 @@ def download(filename):
     if 'enhanced_' not in filename or '..' in filename:
         return "File tidak valid.", 404
 
+    # Pastikan file diambil dari folder RESULTS_FOLDER
     path = os.path.join(app.config['RESULTS_FOLDER'], filename)
 
     try:
@@ -170,3 +179,23 @@ def download(filename):
 if __name__ == '__main__':
     print("Aplikasi berjalan di http://127.0.0.1:5000")
     app.run(debug=True)
+```
+eof
+
+---
+
+### Langkah Verifikasi Kritis
+
+Setelah Anda mengganti `app.py` dengan versi di atas:
+
+1.  **Commit dan Push Ulang:** Lakukan `git add .`, `git commit`, dan `git push` ulang ke GitHub.
+2.  **Cek Log Vercel:** Jika `500 Internal Server Error` masih muncul, segera **cek *Deployment Logs* di *dashboard* Vercel** Anda. Pesan *error* Python yang sebenarnya (seperti `FileNotFoundError` atau `ImportError`) akan muncul di sana.
+
+**CATATAN PENTING TENTANG DEPENDENSI:**
+Pastikan `requirements.txt` Anda mencantumkan **dependensi yang sesuai untuk Vercel**:
+
+```
+Flask
+Pillow
+numpy
+onnxruntime
